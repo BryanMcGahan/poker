@@ -13,7 +13,6 @@ type cardValue string
 
 const (
 	ACE   cardValue = "ace"
-	ONE   cardValue = "one"
 	TWO   cardValue = "two"
 	THREE cardValue = "three"
 	FOUR  cardValue = "four"
@@ -28,7 +27,10 @@ const (
 	KING  cardValue = "king"
 )
 
+var FACES [13]cardValue = [13]cardValue{ACE, TWO, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT, NINE, TEN, JACK, QUEEN, KING}
+var SUITS [4]suit = [4]suit{HEART, SPADE, CLUB, DIAMOND}
+
 type Card struct {
-	value cardValue
-	suit  suit
+	Value cardValue
+	Suit  suit
 }
