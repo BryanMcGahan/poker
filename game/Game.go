@@ -22,24 +22,29 @@ type Game struct {
 	Round       int
 	Hands       []Hand
 	Winner      Player
+	BuyIn       int
 }
 
 func (g Game) Setup() Game {
-	g = g.setupDeck()
+	g.BuyIn = 40
 	return g
 }
 
 func (g Game) Start() {
+	var dealer int = 0
 	for g.Winner == (Player{}) {
 		var currentHand Hand = Hand{}
-		currentHand = currentHand.Setup(0, g.Players, 2, g.Deck)
+		g = g.setupDeck()
+		currentHand = currentHand.Setup(dealer, g.Players, 2, g.Deck)
 		currentHand = currentHand.PlayHand()
-		fmt.Println("HAND WINNER: ", currentHand.Winner.Name)
 		g.Hands = append(g.Hands, currentHand)
+		dealer = (dealer + 1) % len(g.Players)
 	}
 }
 
 func (g Game) AddPlayer(newPlayer Player) Game {
+	newPlayer.Chips = g.BuyIn
+	fmt.Println(newPlayer)
 	g.Players = append(g.Players, newPlayer)
 	return g
 }

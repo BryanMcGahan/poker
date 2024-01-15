@@ -12,7 +12,7 @@ type Hand struct {
 	LittleBlind    int
 	BigBlind       int
 	Deck           Deck
-	CommunityCards PlayedCards
+	CommunityCards []Card
 	Winner         Player
 }
 
@@ -30,6 +30,7 @@ const (
 	TURN  = "TURN"
 	RIVER = "RIVER"
 	DETER = "DETER"
+	LAST  = "LAST"
 )
 
 // order of a hand
@@ -43,13 +44,23 @@ const (
 // 8. Bid
 // 9. Determine winner
 
+func (h Hand) DetermineWinner() Hand {
+
+	for _, player := range h.Players {
+		player = player.RankHand(h.CommunityCards)
+	}
+
+	return h
+}
+
 func (h Hand) PlayHand() Hand {
 	h = h.Deal()
 	for h.Winner == (Player{}) {
 		h = h.BidRound()
 		h = h.CardFlip()
-
 		if h.Stage == DETER {
+			fmt.Println(h.CommunityCards)
+			h = h.DetermineWinner()
 			h.Winner = h.Players[0]
 		}
 	}
@@ -67,13 +78,12 @@ func (h Hand) Setup(dealer int, activePlayers []Player, minBid int, deck Deck) H
 
 	h.Players = activePlayers
 	h.Dealer = dealer
-	h.LittleBlind = h.Dealer + 1
-	h.BigBlind = h.LittleBlind + 1
+	h.LittleBlind = (h.Dealer + 1) % len(h.Players)
+	h.BigBlind = (h.LittleBlind + 1) % len(h.Players)
 	h.MinBid = minBid
-	h.Deck = deck
+	h.Deck.Cards = deck.Cards
 	h.Stage = FLOP
 
-	fmt.Println(h.CommunityCards)
 	for i := 0; i < 7; i++ {
 		h.Deck = h.Deck.Shuffle()
 	}
@@ -81,9 +91,15 @@ func (h Hand) Setup(dealer int, activePlayers []Player, minBid int, deck Deck) H
 	return h
 }
 
+func (d Deck) printDeck() {
+	for i, card := range d.Cards {
+		fmt.Println(i, card)
+	}
+}
+
 func (h Hand) Deal() Hand {
 	for i := 0; i < 2; i++ {
-		j := h.Dealer + 1
+		j := h.LittleBlind
 		sameRound := true
 		for sameRound {
 			if h.Players[j].hand.card1 == (Card{}) {
@@ -94,12 +110,10 @@ func (h Hand) Deal() Hand {
 				h.Deck.Cards = append(h.Deck.Cards[:0], h.Deck.Cards[0+1:]...)
 			}
 
-			if j == len(h.Players)-1 {
-				j = 0
-			} else if j == h.Dealer {
+			if j == h.Dealer {
 				sameRound = false
 			} else {
-				j++
+				j = (j + 1) % len(h.Players)
 			}
 		}
 	}
@@ -111,22 +125,21 @@ func (h Hand) CardFlip() Hand {
 	switch h.Stage {
 	case FLOP:
 		h.Stage = TURN
-		h.CommunityCards.card1 = h.Deck.Cards[0]
+		h.CommunityCards = append(h.CommunityCards, h.Deck.Cards[0])
 		h.Deck.Cards = append(h.Deck.Cards[:0], h.Deck.Cards[1:]...)
-		h.CommunityCards.card2 = h.Deck.Cards[0]
+		h.CommunityCards = append(h.CommunityCards, h.Deck.Cards[0])
 		h.Deck.Cards = append(h.Deck.Cards[:0], h.Deck.Cards[1:]...)
-		h.CommunityCards.card3 = h.Deck.Cards[0]
+		h.CommunityCards = append(h.CommunityCards, h.Deck.Cards[0])
 		h.Deck.Cards = append(h.Deck.Cards[:0], h.Deck.Cards[1:]...)
 		break
 	case TURN:
 		h.Stage = RIVER
-		h.CommunityCards.card4 = h.Deck.Cards[0]
+		h.CommunityCards = append(h.CommunityCards, h.Deck.Cards[0])
 		h.Deck.Cards = append(h.Deck.Cards[:0], h.Deck.Cards[1:]...)
-		fmt.Println(h.Stage)
 		break
 	case RIVER:
-		h.Stage = DETER
-		h.CommunityCards.card5 = h.Deck.Cards[0]
+		h.Stage = LAST
+		h.CommunityCards = append(h.CommunityCards, h.Deck.Cards[0])
 		h.Deck.Cards = append(h.Deck.Cards[:0], h.Deck.Cards[1:]...)
 	}
 
@@ -134,20 +147,23 @@ func (h Hand) CardFlip() Hand {
 }
 
 func (h Hand) BidRound() Hand {
-	fmt.Println("BID")
 	var i int
 	var exit int
 	var allPlayersBid bool = false
 	switch h.Stage {
 	case FLOP:
-		i = h.BigBlind + 1
+		i = (h.BigBlind + 1) % len(h.Players)
 		exit = h.BigBlind
 		break
 	default:
-		i = h.Dealer + 1
+		i = (h.Dealer + 1) % len(h.Players)
 		exit = h.Dealer
+		if h.Stage == LAST {
+			h.Stage = DETER
+		}
 		break
 	}
+
 	for !allPlayersBid {
 
 		player, bidAmount := h.Players[i].PlayBid(h.CurrentBid)
@@ -156,24 +172,31 @@ func (h Hand) BidRound() Hand {
 		h.Players[i] = player
 
 		switch h.Players[i].CurrentPlay {
-		case CALL, BID, RAISE:
+		case CALL, BID:
 			h.Players[i] = h.Players[i].Bid(bidAmount)
 			h.Pot += bidAmount
 			break
+		case RAISE:
+			h.Players[i] = h.Players[i].Bid(bidAmount)
+			h.Pot += bidAmount
+			if i == 0 {
+				exit = len(h.Players) - 1
+			} else {
+				exit = i - 1
+			}
+			break
 		case FOLD:
-			fmt.Println(h.Players)
 			h.Players = append(h.Players[:i], h.Players[i+1:]...)
 			i--
-			fmt.Println(h.Players)
+			break
+		default:
 			break
 		}
 
 		if i == exit {
 			allPlayersBid = true
-		} else if i == len(h.Players)-1 {
-			i = 0
 		} else {
-			i++
+			i = (i + 1) % len(h.Players)
 		}
 	}
 
