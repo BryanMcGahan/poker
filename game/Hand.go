@@ -1,6 +1,10 @@
 package game
 
-import "fmt"
+import (
+	"cmp"
+	"fmt"
+	"slices"
+)
 
 type Hand struct {
 	Players        []Player
@@ -40,17 +44,50 @@ const (
 // 4. Bid
 // 5. Turn
 // 6. Bid
-// 7. River
+//$7. River
 // 8. Bid
 // 9. Determine winner
 
 func (h Hand) DetermineWinner() Hand {
 
-	for _, player := range h.Players {
-		player = player.RankHand(h.CommunityCards)
-	}
+	var boardsCardsSorted []Card = h.CommunityCards
+
+	slices.SortFunc[[]Card](boardsCardsSorted, func(card1, card2 Card) int {
+		return cmp.Compare(CardValueMap[string(card1.Value)], CardValueMap[string(card2.Value)])
+	})
+
+	var boardPairs []Card = getBoardPairs(boardsCardsSorted)
+	fmt.Println("Board Pairs", boardPairs)
+
+	var boardSuits map[string]int = getBoardSuitCounts(boardsCardsSorted)
+	fmt.Println("Board suits", boardSuits)
 
 	return h
+}
+
+func getBoardSuitCounts(cards []Card) map[string]int {
+
+	var suitCounts map[string]int = map[string]int{string(HEART): 0, string(DIAMOND): 0, string(SPADE): 0, string(CLUB): 0}
+
+	for i := 0; i < len(cards); i++ {
+		suitCounts[string(cards[i].Suit)]++
+	}
+
+	return suitCounts
+}
+
+func getBoardPairs(cards []Card) []Card {
+
+	var pairs []Card
+	for i := 0; i < len(cards)-1; i++ {
+		for j := i + 1; j < len(cards); j++ {
+			if CardValueMap[string(cards[i].Value)] == CardValueMap[string(cards[j].Value)] {
+				pairs = append(pairs, cards[i])
+			}
+		}
+	}
+
+	return pairs
 }
 
 func (h Hand) PlayHand() Hand {
@@ -59,7 +96,6 @@ func (h Hand) PlayHand() Hand {
 		h = h.BidRound()
 		h = h.CardFlip()
 		if h.Stage == DETER {
-			fmt.Println(h.CommunityCards)
 			h = h.DetermineWinner()
 			h.Winner = h.Players[0]
 		}
